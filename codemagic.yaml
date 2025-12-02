@@ -9,7 +9,6 @@ workflows:
       node: latest
       ruby: default      # FIXED: 'latest' is not valid for Ruby
       cocoapods: default
-      flutter: none
       xcode: latest
       # FIXED: Removed 'android' block (not allowed on Mac instances)
     scripts:
