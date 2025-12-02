@@ -203,20 +203,22 @@ const DatesScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
             <ScrollView style={styles.content}>
                 {renderCalendar()}
                 <Text style={styles.listHeader}>Upcoming Events</Text>
-                {dates.map(item => (
-                    <View key={item.id} style={styles.dateContainer}>
-                        <View style={styles.dateInfo}>
-                            <Text style={styles.dateEmotion}>{item.emotion}</Text>
-                            <View>
-                                <Text style={styles.dateTitle}>{item.title}</Text>
-                                <Text style={styles.dateValue}>{item.date}</Text>
+                {dates
+                    .filter(item => item.date >= new Date().toISOString().split('T')[0])
+                    .map(item => (
+                        <View key={item.id} style={styles.dateContainer}>
+                            <View style={styles.dateInfo}>
+                                <Text style={styles.dateEmotion}>{item.emotion}</Text>
+                                <View>
+                                    <Text style={styles.dateTitle}>{item.title}</Text>
+                                    <Text style={styles.dateValue}>{item.date}</Text>
+                                </View>
                             </View>
+                            <TouchableOpacity onPress={() => deleteDate(item.id)}>
+                                <Text style={styles.deleteText}>✕</Text>
+                            </TouchableOpacity>
                         </View>
-                        <TouchableOpacity onPress={() => deleteDate(item.id)}>
-                            <Text style={styles.deleteText}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                ))}
+                    ))}
             </ScrollView>
 
             {/* Side Menu / Details Panel */}
@@ -432,6 +434,225 @@ const styles = StyleSheet.create({
     closePickerText: {
         color: '#ff4444',
         fontSize: 16,
+    },
+
+    // Missing styles added below
+    calendarContainer: {
+        backgroundColor: '#fff',
+        margin: 15,
+        borderRadius: 15,
+        padding: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    calendarHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    weekDays: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginBottom: 10,
+    },
+    weekDay: {
+        color: '#888',
+        fontWeight: 'bold',
+        width: 30,
+        textAlign: 'center',
+    },
+    daysGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    dayCell: {
+        width: '14.28%',
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 5,
+    },
+    dayText: {
+        fontSize: 16,
+    },
+    selectedDayText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    eventDot: {
+        fontSize: 10,
+        position: 'absolute',
+        bottom: 2,
+    },
+    content: {
+        flex: 1,
+    },
+    listHeader: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        marginLeft: 15,
+        marginTop: 10,
+        marginBottom: 10,
+        color: '#333',
+    },
+    dateContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: '#fff',
+        marginHorizontal: 15,
+        marginBottom: 10,
+        padding: 15,
+        borderRadius: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    dateInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    dateEmotion: {
+        fontSize: 24,
+        marginRight: 15,
+    },
+    dateTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#333',
+    },
+    dateValue: {
+        fontSize: 14,
+        color: '#666',
+    },
+    deleteText: {
+        fontSize: 18,
+        color: '#ff4444',
+        padding: 5,
+    },
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 100,
+    },
+    backdrop: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    sideMenu: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        width: '80%',
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: -2, height: 0 },
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
+        elevation: 5,
+    },
+    sideMenuHeader: {
+        padding: 20,
+        paddingTop: 50,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    sideMenuTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    closeText: {
+        fontSize: 24,
+        color: '#333',
+        padding: 5,
+    },
+    sideMenuContent: {
+        padding: 20,
+    },
+    eventCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f9f9f9',
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 10,
+    },
+    eventEmotion: {
+        fontSize: 20,
+        marginRight: 10,
+    },
+    eventTitle: {
+        flex: 1,
+        fontSize: 16,
+    },
+    noEventsText: {
+        textAlign: 'center',
+        color: '#888',
+        marginTop: 20,
+        marginBottom: 20,
+    },
+    addButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    addForm: {
+        marginTop: 20,
+    },
+    input: {
+        backgroundColor: '#f5f5f5',
+        padding: 15,
+        borderRadius: 10,
+        marginBottom: 15,
+        fontSize: 16,
+    },
+    emotionPicker: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    emotionButton: {
+        width: '23%',
+        aspectRatio: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        marginBottom: 10,
+    },
+    emotionText: {
+        fontSize: 24,
+    },
+    formButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    cancelButton: {
+        padding: 10,
+        borderRadius: 5,
+        paddingHorizontal: 20,
+        backgroundColor: '#eee',
+    },
+    cancelButtonText: {
+        color: '#333',
+        fontWeight: 'bold',
     },
 });
 
