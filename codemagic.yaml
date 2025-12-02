@@ -26,27 +26,43 @@ workflows:
         script: |
           npm install
 
-      # 2️⃣ Install iOS Pods
-      - name: Install CocoaPods
-        script: |
-          cd ios
-          pod install
-          cd ..
-
-      # 3️⃣ Build Android release APK
+      # 2️⃣ Build Android release APK
       - name: Build Android release APK
         script: |
           cd android
           ./gradlew assembleRelease
           cd ..
 
+      # 3️⃣ iOS build setup
+      - name: Prepare iOS build
+        script: |
+          cd ios
+          # Only run pod install if Podfile exists
+          if [ -f Podfile ]; then
+            echo "Podfile found, installing pods..."
+            pod install
+          else
+            echo "No Podfile found, skipping pods."
+          fi
+          cd ..
+
       # 4️⃣ Build iOS IPA
       - name: Build iOS release .ipa
         script: |
-          xcode-project build-ipa \
-            --workspace ios/US-App.xcworkspace \
-            --scheme US-App \
-            --archive-directory build
+          # Check if workspace exists
+          if [ -f ios/US-App.xcworkspace ]; then
+            echo "Using workspace for build"
+            xcode-project build-ipa \
+              --workspace ios/US-App.xcworkspace \
+              --scheme US-App \
+              --archive-directory build
+          else
+            echo "Using Xcode project for build"
+            xcode-project build-ipa \
+              --project ios/US-App.xcodeproj \
+              --scheme US-App \
+              --archive-directory build
+          fi
 
     artifacts:
       - android/app/build/outputs/**/*.apk
