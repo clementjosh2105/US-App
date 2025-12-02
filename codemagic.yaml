@@ -8,7 +8,7 @@ workflows:
       vars:
         ENTRY_FILE: index.js
       node: 18
-      xcode: 15.2
+      xcode: 16.1   # ✅ FIXED — supported version
       cocoapods: 1.14.3
 
     triggering:
