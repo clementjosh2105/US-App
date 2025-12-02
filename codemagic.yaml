@@ -2,6 +2,7 @@ workflows:
   react-native-build:
     name: React Native Build
     max_build_duration: 60
+    # instance_type: mac_mini_m1 # Optional: Explicitly sets the machine type
     environment:
       vars:
         NODE_ENV: production
@@ -10,10 +11,7 @@ workflows:
       cocoapods: default
       flutter: none
       xcode: latest
-      android:
-        build_tools: 33.0.2
-        ndk: 25.2.9519653
-        gradle: 8.1
+      # REMOVED the 'android' block from here
     scripts:
       - name: Install dependencies
         script: |
@@ -26,11 +24,14 @@ workflows:
       - name: Build Android
         script: |
           cd android
+          # Ensure executable permission is set
+          chmod +x gradlew
           ./gradlew clean
           ./gradlew assembleRelease
           cd ..
       - name: Build iOS
         script: |
+          # It is often safer to specify the workspace path explicitly if it varies
           xcodebuild clean -workspace ios/US-App.xcworkspace -scheme US-App -configuration Release
           xcodebuild archive -workspace ios/US-App.xcworkspace -scheme US-App -archivePath $CM_BUILD_DIR/build/US-App.xcarchive
           xcodebuild -exportArchive -archivePath $CM_BUILD_DIR/build/US-App.xcarchive -exportOptionsPlist ios/ExportOptions.plist -exportPath $CM_BUILD_DIR/build
