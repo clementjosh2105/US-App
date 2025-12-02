@@ -2,41 +2,57 @@ workflows:
   react-native-build:
     name: React Native Build
     max_build_duration: 60
-    # instance_type: mac_mini_m1 # Optional: Explicitly sets the machine type
+    instance_type: mac_mini_m1
     environment:
       vars:
         NODE_ENV: production
       node: latest
+      ruby: default      # FIXED: 'latest' is not valid for Ruby
       cocoapods: default
+      flutter: none
       xcode: latest
-      # REMOVED the 'android' block from here
+      # FIXED: Removed 'android' block (not allowed on Mac instances)
     scripts:
-      - name: Install dependencies
+      - name: Install dependencies & Prebuild
         script: |
           npm install
-          npx pod-install ios
+          
+          # FIXED: Check if ios folder exists. If not, assume Expo and prebuild.
+          if [ ! -d "ios" ]; then
+            echo "⚠️ 'ios' directory not found. Running Expo Prebuild..."
+            npx expo prebuild
+          fi
+          
+          # Install Pods
+          cd ios
+          pod install
+          cd ..
+          
       - name: Run tests
         script: |
           echo "Running tests..."
           npm test || true
+          
       - name: Build Android
         script: |
           cd android
-          # Ensure executable permission is set
-          chmod +x gradlew
+          chmod +x gradlew   # FIXED: Ensure gradle is executable
           ./gradlew clean
           ./gradlew assembleRelease
           cd ..
+          
       - name: Build iOS
         script: |
-          # It is often safer to specify the workspace path explicitly if it varies
+          # NOTE: Verify 'US-App' matches your actual workspace name in the ios/ folder
           xcodebuild clean -workspace ios/US-App.xcworkspace -scheme US-App -configuration Release
           xcodebuild archive -workspace ios/US-App.xcworkspace -scheme US-App -archivePath $CM_BUILD_DIR/build/US-App.xcarchive
           xcodebuild -exportArchive -archivePath $CM_BUILD_DIR/build/US-App.xcarchive -exportOptionsPlist ios/ExportOptions.plist -exportPath $CM_BUILD_DIR/build
+          
     artifacts:
       - build/**/*.apk
       - build/**/*.aab
       - build/**/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
     publishing:
       email:
         recipients:
