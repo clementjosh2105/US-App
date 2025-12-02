@@ -33,12 +33,26 @@ workflows:
 
       - name: Build iOS
         script: |
-          # Finds the correct workspace automatically and builds using Codemagic settings
-          # This replaces the complex xcodebuild commands and fixes the plist error
+          # 1. Create the ExportOptions.plist file manually
+          cat > ios/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>ad-hoc</string>
+              <key>compileBitcode</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
+
+          # 2. Build the IPA using the file we just created
           xcode-project build-ipa \
             --workspace "ios/US.xcworkspace" \
             --scheme "US" \
-            --config Release
+            --config Release \
+            --export-options-plist "ios/ExportOptions.plist"
 
     artifacts:
       - build/**/*.apk
