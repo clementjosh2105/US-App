@@ -7,7 +7,6 @@ workflows:
       vars:
         NODE_ENV: production
       node: latest
-      ruby: latest
       cocoapods: default
       flutter: none
       xcode: latest
