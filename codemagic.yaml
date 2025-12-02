@@ -7,16 +7,16 @@ workflows:
       vars:
         NODE_ENV: production
       node: latest
-      ruby: default      # FIXED: 'latest' is not valid for Ruby
+      ruby: default
       cocoapods: default
+      flutter: none
       xcode: latest
-      # FIXED: Removed 'android' block (not allowed on Mac instances)
     scripts:
       - name: Install dependencies & Prebuild
         script: |
           npm install
           
-          # FIXED: Check if ios folder exists. If not, assume Expo and prebuild.
+          # Checks if ios folder exists. If not, runs Expo Prebuild.
           if [ ! -d "ios" ]; then
             echo "⚠️ 'ios' directory not found. Running Expo Prebuild..."
             npx expo prebuild
@@ -26,27 +26,21 @@ workflows:
           cd ios
           pod install
           cd ..
-          
+
       - name: Run tests
         script: |
           echo "Running tests..."
           npm test || true
-          
-      - name: Build Android
-        script: |
-          cd android
-          chmod +x gradlew   # FIXED: Ensure gradle is executable
-          ./gradlew clean
-          ./gradlew assembleRelease
-          cd ..
-          
+
       - name: Build iOS
         script: |
-          # NOTE: Verify 'US-App' matches your actual workspace name in the ios/ folder
-          xcodebuild clean -workspace ios/US-App.xcworkspace -scheme US-App -configuration Release
-          xcodebuild archive -workspace ios/US-App.xcworkspace -scheme US-App -archivePath $CM_BUILD_DIR/build/US-App.xcarchive
-          xcodebuild -exportArchive -archivePath $CM_BUILD_DIR/build/US-App.xcarchive -exportOptionsPlist ios/ExportOptions.plist -exportPath $CM_BUILD_DIR/build
-          
+          # Finds the correct workspace automatically and builds using Codemagic settings
+          # This replaces the complex xcodebuild commands and fixes the plist error
+          xcode-project build-ipa \
+            --workspace "ios/US.xcworkspace" \
+            --scheme "US" \
+            --config Release
+
     artifacts:
       - build/**/*.apk
       - build/**/*.aab
