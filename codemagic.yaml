@@ -8,7 +8,7 @@ workflows:
       vars:
         ENTRY_FILE: index.js
       node: 18
-      xcode: 16.1   # ✅ supported version
+      xcode: 16.1
       cocoapods: 1.14.3
 
     triggering:
@@ -21,7 +21,7 @@ workflows:
           source: true
 
     scripts:
-      # 1️⃣ Install dependencies
+      # 1️⃣ Install Node modules
       - name: Install Node modules
         script: |
           npm install
@@ -33,7 +33,7 @@ workflows:
           pod install
           cd ..
 
-      # 3️⃣ Build Android APK
+      # 3️⃣ Build Android release APK
       - name: Build Android release APK
         script: |
           cd android
