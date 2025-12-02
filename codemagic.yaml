@@ -9,7 +9,6 @@ workflows:
       node: latest
       ruby: default
       cocoapods: default
-      flutter: none
       xcode: latest
     scripts:
       - name: Install dependencies & Prebuild
