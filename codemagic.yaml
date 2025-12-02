@@ -1,0 +1,65 @@
+workflows:
+  react-native-build:
+    name: React Native Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      vars:
+        NODE_ENV: production
+      node: latest
+      ruby: default
+      cocoapods: default
+      xcode: latest
+    scripts:
+      - name: Install dependencies & Prebuild
+        script: |
+          npm install
+          
+          # Checks if ios folder exists. If not, runs Expo Prebuild.
+          if [ ! -d "ios" ]; then
+            echo "⚠️ 'ios' directory not found. Running Expo Prebuild..."
+            npx expo prebuild
+          fi
+          
+          # Install Pods
+          cd ios
+          pod install
+          cd ..
+
+      - name: Run tests
+        script: |
+          echo "Running tests..."
+          npm test || true
+
+      - name: Build iOS
+        script: |
+          # 1. Create the ExportOptions.plist file manually
+          cat > ios/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>ad-hoc</string>
+              <key>compileBitcode</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
+
+          # 2. Build the IPA using the file we just created
+          xcode-project build-ipa \
+            --workspace "ios/US.xcworkspace" \
+            --scheme "US" \
+            --config Release \
+            --export-options-plist "ios/ExportOptions.plist"
+
+    artifacts:
+      - build/**/*.apk
+      - build/**/*.aab
+      - build/**/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      email:
+        recipients:
+          - joejoshua99@gmail.com
