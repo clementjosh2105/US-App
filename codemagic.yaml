@@ -1,1 +1,61 @@
+workflows:
+  react-native-workflow:
+    name: React Native Build (iOS + Android)
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+
+    environment:
+      vars:
+        ENTRY_FILE: index.js
+      node: 18
+      xcode: 15.2
+      cocoapods: 1.14.3
+
+    triggering:
+      events:
+        - push
+        - pull_request
+      branch_patterns:
+        - pattern: "*"
+          include: true
+          source: true
+
+    scripts:
+      # 1️⃣ Install dependencies
+      - name: Install Node modules
+        script: |
+          npm install
+
+      # 2️⃣ Install iOS Pods
+      - name: Install CocoaPods
+        script: |
+          cd ios
+          pod install
+          cd ..
+
+      # 3️⃣ Build Android APK
+      - name: Build Android release APK
+        script: |
+          cd android
+          ./gradlew assembleRelease
+          cd ..
+
+      # 4️⃣ Build iOS IPA (unsigned or automatically signed)
+      - name: Build iOS release .ipa
+        script: |
+          xcode-project build-ipa \
+            --project ios/*.xcodeproj \
+            --scheme YourAppName \
+            --archive-path build/YourAppName.xcarchive
+
+    artifacts:
+      - android/app/build/outputs/**/**/*.apk
+      - build/*.ipa
+      - build/**/*.ipa
+      - ios/build/**/Logs/*.log
+
+    publishing:
+      email:
+        recipients:
+          - joejoshua99@gmail.com
 
