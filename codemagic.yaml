@@ -8,7 +8,6 @@ workflows:
         NODE_ENV: production
       node: latest
       cocoapods: default
-      flutter: none
       xcode: latest
       # REMOVED the 'android' block from here
     scripts:
