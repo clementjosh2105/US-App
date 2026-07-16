@@ -1,19 +1,25 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
-import { AuthContext } from '../context/AuthContext';
+import {
+    View, Text, TextInput, TouchableOpacity, StyleSheet,
+    Alert, KeyboardAvoidingView, Platform, Dimensions, Image
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { AuthContext } from '../context/AuthContext';
+import { IG } from '../styles/theme';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
+
+// Instagram-style gradient colors
+const IG_GRADIENT = ['#833AB4', '#FD1D1D', '#FCB045'];
 
 const LoginScreen = () => {
     const [name, setName] = useState('');
-
     const { login } = useContext(AuthContext);
 
     const handleLogin = (color) => {
         if (!name.trim()) {
-            Alert.alert('Hold up!', 'We need to know your name first.');
+            Alert.alert('Hold up!', 'We need to know your name first 💭');
             return;
         }
         login(name, color);
@@ -22,143 +28,107 @@ const LoginScreen = () => {
     return (
         <View style={styles.container}>
             <StatusBar style="light" />
-            <LinearGradient
-                colors={['#FF9A9E', '#FECFEF', '#E0C3FC']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.background}
-            />
+
+            {/* Gradient background */}
+            <LinearGradient colors={['#1a1a2e', '#16213e', '#0f3460']} style={styles.bg} />
 
             <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                style={styles.content}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.inner}
             >
-                <View style={styles.headerContainer}>
-                    <Text style={styles.emoji}>💑</Text>
-                    <Text style={styles.title}>US</Text>
-                    <Text style={styles.subtitle}>Connect deeply, stay close.</Text>
+                {/* Logo area */}
+                <View style={styles.logoArea}>
+                    <LinearGradient
+                        colors={IG_GRADIENT}
+                        style={styles.logoRing}
+                        start={{ x: 0, y: 1 }}
+                        end={{ x: 1, y: 0 }}
+                    >
+                        <View style={styles.logoInner}>
+                            <Text style={styles.logoEmoji}>💑</Text>
+                        </View>
+                    </LinearGradient>
+
+                    <Text style={styles.appName}>US</Text>
+                    <Text style={styles.tagline}>your private couple space</Text>
                 </View>
 
+                {/* Card */}
                 <View style={styles.card}>
-                    <Text style={styles.inputLabel}>What should we call you?</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Your cute nickname..."
-                        placeholderTextColor="#aaa"
-                        value={name}
-                        onChangeText={setName}
-                    />
-
-                    <View style={styles.buttonContainer}>
-                        <TouchableOpacity
-                            style={[styles.button, { backgroundColor: '#779ECB', marginRight: 10 }]}
-                            onPress={() => handleLogin('blue')}
-                        >
-                            <Text style={styles.buttonText}>Male ♂️</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[styles.button, { backgroundColor: '#FF8080', marginLeft: 10 }]}
-                            onPress={() => handleLogin('red')}
-                        >
-                            <Text style={styles.buttonText}>Female ♀️</Text>
-                        </TouchableOpacity>
+                    <Text style={styles.cardLabel}>What should we call you?</Text>
+                    <View style={styles.inputWrapper}>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Your nickname..."
+                            placeholderTextColor={IG.textMuted}
+                            value={name}
+                            onChangeText={setName}
+                            autoCorrect={false}
+                        />
                     </View>
+
+                    <TouchableOpacity
+                        style={styles.maleBtn}
+                        onPress={() => handleLogin('blue')}
+                        activeOpacity={0.85}
+                    >
+                        <LinearGradient
+                            colors={['#4facfe', '#00f2fe']}
+                            style={styles.btnGrad}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            <Text style={styles.btnTxt}>♂  Continue as Male</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.femaleBtn}
+                        onPress={() => handleLogin('red')}
+                        activeOpacity={0.85}
+                    >
+                        <LinearGradient
+                            colors={IG_GRADIENT}
+                            style={styles.btnGrad}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                        >
+                            <Text style={styles.btnTxt}>♀  Continue as Female</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
                 </View>
+
+                <Text style={styles.footer}>Just the two of you ❤️</Text>
             </KeyboardAvoidingView>
         </View>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    background: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-    },
-    content: {
-        flex: 1,
-        justifyContent: 'center',
-        padding: 20,
-    },
-    headerContainer: {
-        alignItems: 'center',
-        marginBottom: 40,
-    },
-    emoji: {
-        fontSize: 60,
-        marginBottom: 10,
-    },
-    title: {
-        fontSize: 42,
-        fontWeight: '900',
-        color: '#fff',
-        textShadowColor: 'rgba(0, 0, 0, 0.1)',
-        textShadowOffset: { width: 1, height: 1 },
-        textShadowRadius: 5,
-    },
-    subtitle: {
-        fontSize: 18,
-        color: '#fff',
-        opacity: 0.9,
-        marginTop: 5,
-        fontWeight: '500',
-    },
-    card: {
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        padding: 30,
-        borderRadius: 30,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 10,
-    },
-    inputLabel: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#555',
-        marginBottom: 10,
-        marginLeft: 5,
-    },
-    input: {
-        backgroundColor: '#f9f9f9',
-        padding: 18,
-        borderRadius: 20,
-        marginBottom: 25,
-        fontSize: 16,
-        borderWidth: 1,
-        borderColor: '#eee',
-        color: '#333',
-    },
+    container:  { flex: 1 },
+    bg:         { position: 'absolute', inset: 0 },
+    inner:      { flex: 1, justifyContent: 'center', paddingHorizontal: 28 },
 
-    buttonContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 20,
-    },
-    button: {
-        flex: 1,
-        padding: 20,
-        borderRadius: 25,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 5 },
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    buttonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: 20,
-        letterSpacing: 1,
-    },
+    // Logo
+    logoArea:   { alignItems: 'center', marginBottom: 36 },
+    logoRing:   { width: 90, height: 90, borderRadius: 22, padding: 3, marginBottom: 18 },
+    logoInner:  { flex: 1, backgroundColor: '#1a1a2e', borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+    logoEmoji:  { fontSize: 40 },
+    appName:    { fontSize: 42, fontWeight: '800', color: '#fff', letterSpacing: 4, fontStyle: 'italic' },
+    tagline:    { fontSize: 14, color: 'rgba(255,255,255,0.55)', marginTop: 4, letterSpacing: 1 },
+
+    // Card
+    card:       { backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 20, padding: 24, borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.15)' },
+    cardLabel:  { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginBottom: 12, fontWeight: '500' },
+    inputWrapper: { marginBottom: 20 },
+    input:      { backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 14, fontSize: 16, color: '#fff', borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.2)' },
+
+    maleBtn:    { borderRadius: 12, overflow: 'hidden', marginBottom: 12 },
+    femaleBtn:  { borderRadius: 12, overflow: 'hidden' },
+    btnGrad:    { paddingVertical: 16, alignItems: 'center' },
+    btnTxt:     { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+
+    footer:     { textAlign: 'center', color: 'rgba(255,255,255,0.35)', fontSize: 13, marginTop: 28 },
 });
 
 export default LoginScreen;

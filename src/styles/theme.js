@@ -1,43 +1,74 @@
 import { StyleSheet } from 'react-native';
 
+// Instagram-style design system
+export const IG = {
+    // Colors
+    white: '#FFFFFF',
+    black: '#000000',
+    background: '#FAFAFA',
+    border: '#DBDBDB',
+    textPrimary: '#262626',
+    textSecondary: '#8E8E8E',
+    textMuted: '#C7C7C7',
+    blue: '#0095F6',
+    red: '#ED4956',
+    surface: '#FFFFFF',
+
+    // Instagram gradient colors (logo colors)
+    gradientColors: ['#833AB4', '#FD1D1D', '#FCB045'],
+
+    // Tab bar
+    tabBar: '#FFFFFF',
+    tabBarBorder: '#DBDBDB',
+    tabActive: '#262626',
+    tabInactive: '#8E8E8E',
+
+    // Story ring gradient
+    storyRing: ['#F58529', '#DD2A7B', '#8134AF', '#515BD4'],
+};
+
 export const COLORS = {
     red: {
-        primary: '#FF8080', // Soft Red (Readable with white)
+        primary: '#ED4956',
         secondary: '#FFDAC1',
-        background: '#FFF9F9',
-        text: '#6D4C41',
+        background: '#FAFAFA',
+        text: '#262626',
         card: '#FFFFFF',
-        accent: '#FF9AA2'
+        accent: '#ED4956',
+        gradient: ['#833AB4', '#FD1D1D', '#FCB045'],
     },
     blue: {
-        primary: '#779ECB', // Soft Blue (Readable with white)
+        primary: '#0095F6',
         secondary: '#C4E0E5',
-        background: '#F9FDFF',
-        text: '#455A64',
+        background: '#FAFAFA',
+        text: '#262626',
         card: '#FFFFFF',
-        accent: '#93C8D5'
+        accent: '#0095F6',
+        gradient: ['#833AB4', '#FD1D1D', '#FCB045'],
     },
     green: {
-        primary: '#A0E8AF', // Soft Green
+        primary: '#23D160',
         secondary: '#E0F2F1',
-        background: '#F1F8E9',
-        text: '#33691E',
+        background: '#FAFAFA',
+        text: '#262626',
         card: '#FFFFFF',
-        accent: '#AED581'
+        accent: '#23D160',
+        gradient: ['#833AB4', '#FD1D1D', '#FCB045'],
     },
     purple: {
-        primary: '#D7BDE2', // Soft Purple
+        primary: '#833AB4',
         secondary: '#F3E5F5',
-        background: '#FBF7FB',
-        text: '#4A148C',
+        background: '#FAFAFA',
+        text: '#262626',
         card: '#FFFFFF',
-        accent: '#E1BEE7'
+        accent: '#833AB4',
+        gradient: ['#833AB4', '#FD1D1D', '#FCB045'],
     },
     common: {
         white: '#FFFFFF',
-        black: '#444444',
-        gray: '#9E9E9E',
-        lightGray: '#F5F5F5',
+        black: '#262626',
+        gray: '#8E8E8E',
+        lightGray: '#FAFAFA',
     }
 };
 
@@ -48,42 +79,48 @@ export const getTheme = (colorScheme) => {
 export const commonStyles = StyleSheet.create({
     container: {
         flex: 1,
-        padding: 20,
+        backgroundColor: IG.background,
     },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        marginBottom: 20,
-        textAlign: 'center',
-    },
-    input: {
-        borderWidth: 1,
-        borderColor: '#ccc',
-        padding: 15,
-        borderRadius: 10,
-        marginBottom: 15,
-        backgroundColor: '#fff',
-    },
-    button: {
-        padding: 15,
-        borderRadius: 10,
+    igHeader: {
+        flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 10,
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        backgroundColor: IG.white,
+        borderBottomWidth: 0.5,
+        borderBottomColor: IG.border,
     },
-    buttonText: {
-        color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 16,
+    igHeaderTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: IG.textPrimary,
+        fontStyle: 'italic',
+        fontFamily: 'serif',
     },
     card: {
-        padding: 15,
-        borderRadius: 15,
-        backgroundColor: '#fff',
-        marginBottom: 15,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    }
+        backgroundColor: IG.white,
+        marginBottom: 8,
+    },
+    input: {
+        backgroundColor: IG.background,
+        borderWidth: 1,
+        borderColor: IG.border,
+        borderRadius: 8,
+        padding: 14,
+        fontSize: 14,
+        color: IG.textPrimary,
+        marginBottom: 12,
+    },
+    button: {
+        backgroundColor: IG.blue,
+        borderRadius: 8,
+        padding: 12,
+        alignItems: 'center',
+    },
+    buttonText: {
+        color: IG.white,
+        fontWeight: '600',
+        fontSize: 14,
+    },
 });

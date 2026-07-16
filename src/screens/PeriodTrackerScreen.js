@@ -1,525 +1,543 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal } from 'react-native';
+import {
+    View, Text, StyleSheet, ScrollView, TouchableOpacity,
+    ActivityIndicator, Alert, Modal, TextInput, Platform
+} from 'react-native';
 import { Calendar } from 'react-native-calendars';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { AuthContext } from '../context/AuthContext';
 import { db } from '../firebaseConfig';
-import { collection, query, orderBy, onSnapshot, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import {
+    collection, query, orderBy, onSnapshot,
+    addDoc, deleteDoc, doc, serverTimestamp
+} from 'firebase/firestore';
 import { getRemedySuggestion, getCyclePredictions, getPartnerAdvice } from '../services/aiService';
 import { sendNotification } from '../services/notificationService';
+import { IG } from '../styles/theme';
 
-const PeriodTrackerScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
+// ─── Color constants ──────────────────────────────────────────────────────────
+const C = {
+    period:    '#ED4956',
+    predicted: '#FFB3BA',
+    ovulation: '#833AB4',
+    fertile:   '#D6A4F7',
+    intimacy:  '#FCB045',
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+const toDateStr = (d) => d.toISOString().split('T')[0];
+
+const addDays = (dateStr, n) => {
+    const d = new Date(dateStr);
+    d.setDate(d.getDate() + n);
+    return toDateStr(d);
+};
+
+const daysBetween = (a, b) =>
+    Math.round((new Date(b) - new Date(a)) / 86400000);
+
+const PeriodTrackerScreen = ({ toggleMenu, onNotificationClick }) => {
     const { user, partner } = useContext(AuthContext);
-    const [markedDates, setMarkedDates] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [suggestion, setSuggestion] = useState('');
-    const [aiLoading, setAiLoading] = useState(false);
-    const [periodLogs, setPeriodLogs] = useState([]);
-    const [predictions, setPredictions] = useState(null);
-    const [lastPredictionBaseDate, setLastPredictionBaseDate] = useState(null);
-    const [partnerAdvice, setPartnerAdvice] = useState('');
-
-    // Logging Modal State
-    // Logging Modal State
-    const [logModalVisible, setLogModalVisible] = useState(false);
-    const [selectedDate, setSelectedDate] = useState(null);
-    const [modalMode, setModalMode] = useState('add'); // 'add' or 'delete'
-    const [selectedLogId, setSelectedLogId] = useState(null);
-
     const coupleId = [user.id, partner.id].sort().join('_');
 
-    useEffect(() => {
-        const unsub = onSnapshot(query(collection(db, 'periods', coupleId, 'logs'), orderBy('date', 'asc')), (snap) => {
-            const logs = snap.docs.map(doc => ({ id: doc.id, date: doc.data().date }));
-            setPeriodLogs(logs);
-            // Initial render with just logs
-            updateCalendar(logs, predictions);
-            setLoading(false);
-        });
+    // ─── State ────────────────────────────────────────────────────────────────
+    const [periodLogs,   setPeriodLogs]   = useState([]);
+    const [intimacyLogs, setIntimacyLogs] = useState([]);
+    const [markedDates,  setMarkedDates]  = useState({});
+    const [predictions,  setPredictions]  = useState(null);
+    const [partnerAdvice, setPartnerAdvice] = useState('');
+    const [loading,      setLoading]      = useState(true);
+    const [aiLoading,    setAiLoading]    = useState(false);
+    const [suggestion,   setSuggestion]   = useState('');
 
-        return () => unsub();
+    // modal
+    const [modal, setModal] = useState({ visible: false, date: null, type: null }); // type: 'period'|'intimacy'|'deletePeriod'|'deleteIntimacy'
+    const [selectedLogId, setSelectedLogId] = useState(null);
+
+    // tab: 'cycle' | 'intimacy'
+    const [activeTab, setActiveTab] = useState('cycle');
+
+    // ─── Firebase listeners ───────────────────────────────────────────────────
+    useEffect(() => {
+        const unsubPeriod = onSnapshot(
+            query(collection(db, 'periods', coupleId, 'logs'), orderBy('date', 'asc')),
+            (snap) => {
+                const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setPeriodLogs(logs);
+                setLoading(false);
+            }
+        );
+
+        const unsubIntimacy = onSnapshot(
+            query(collection(db, 'intimacy', coupleId, 'logs'), orderBy('date', 'asc')),
+            (snap) => {
+                const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                setIntimacyLogs(logs);
+            }
+        );
+
+        return () => { unsubPeriod(); unsubIntimacy(); };
     }, [coupleId]);
 
-    // Fetch Partner Advice
+    // ─── Prediction when logs change ─────────────────────────────────────────
     useEffect(() => {
         if (periodLogs.length > 0) {
-            const lastLog = periodLogs[periodLogs.length - 1];
-            const lastDate = new Date(lastLog.date);
-            const today = new Date();
-            const diffTime = today - lastDate;
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            const last = periodLogs[periodLogs.length - 1];
+            fetchPredictions(last.date);
+        }
+    }, [periodLogs]);
 
+    useEffect(() => {
+        rebuildCalendar(periodLogs, intimacyLogs, predictions);
+    }, [periodLogs, intimacyLogs, predictions]);
+
+    // ─── Partner advice ───────────────────────────────────────────────────────
+    useEffect(() => {
+        if (periodLogs.length > 0) {
+            const last = periodLogs[periodLogs.length - 1];
+            const diffDays = daysBetween(last.date, toDateStr(new Date())) + 1;
+            let phase = 'Follicular';
+            if (diffDays <= 5) phase = 'Menstrual';
+            else if (diffDays >= 12 && diffDays <= 16) phase = 'Ovulation';
+            else if (diffDays > 16) phase = 'Luteal';
             if (diffDays > 0 && diffDays <= 35) {
-                let phase = 'Follicular';
-                if (diffDays <= 5) phase = 'Menstrual';
-                else if (diffDays >= 12 && diffDays <= 16) phase = 'Ovulation';
-                else if (diffDays > 16) phase = 'Luteal';
-
-                getPartnerAdvice(diffDays, phase).then(advice => {
-                    if (advice) setPartnerAdvice(advice);
-                });
+                getPartnerAdvice(diffDays, phase).then(a => { if (a) setPartnerAdvice(a); });
             }
         }
     }, [periodLogs]);
 
-    // Fetch AI Predictions when logs change
-    useEffect(() => {
-        if (periodLogs.length > 0) {
-            const lastLog = periodLogs[periodLogs.length - 1];
-            if (lastLog.date !== lastPredictionBaseDate) {
-                fetchPredictions(lastLog.date);
-            }
-        }
-    }, [periodLogs]);
-
-    // Update calendar when predictions change
-    useEffect(() => {
-        updateCalendar(periodLogs, predictions);
-    }, [predictions]);
-
-    const fetchPredictions = async (lastDate) => {
-        setLastPredictionBaseDate(lastDate);
-        const result = await getCyclePredictions(lastDate);
-        if (result) {
-            setPredictions(result);
-        }
-    };
-
-    const updateCalendar = (logs, preds) => {
+    // ─── Calendar builder ─────────────────────────────────────────────────────
+    const rebuildCalendar = (pLogs, iLogs, preds) => {
         const marks = {};
 
-        // Mark past periods (5 days duration)
-        logs.forEach(l => {
-            let start = new Date(l.date);
+        // Period days (5-day duration per log)
+        pLogs.forEach(l => {
             for (let i = 0; i < 5; i++) {
-                const d = new Date(start);
-                d.setDate(start.getDate() + i);
-                const dateStr = d.toISOString().split('T')[0];
-                marks[dateStr] = { selected: true, selectedColor: '#FF6B6B', type: 'period' };
+                const d = addDays(l.date, i);
+                marks[d] = { selected: true, selectedColor: C.period, marked: false };
             }
         });
 
-        // Mark predictions if available
+        // Predictions
         if (preds) {
-            if (preds.nextPeriod) {
-                marks[preds.nextPeriod] = { selected: true, selectedColor: '#FFCDD2', type: 'predicted' };
-            }
-            if (preds.ovulation) {
-                marks[preds.ovulation] = { selected: true, selectedColor: '#9C27B0', type: 'ovulation' };
-            }
+            if (preds.nextPeriod)
+                marks[preds.nextPeriod] = { selected: true, selectedColor: C.predicted };
+            if (preds.ovulation)
+                marks[preds.ovulation] = { selected: true, selectedColor: C.ovulation };
             if (preds.fertileStart && preds.fertileEnd) {
-                let start = new Date(preds.fertileStart);
+                let cur = new Date(preds.fertileStart);
                 const end = new Date(preds.fertileEnd);
-                while (start <= end) {
-                    const dateStr = start.toISOString().split('T')[0];
-                    if (!marks[dateStr]) { // Don't overwrite ovulation if it overlaps
-                        marks[dateStr] = { selected: true, selectedColor: '#E1BEE7', type: 'fertile' };
-                    }
-                    start.setDate(start.getDate() + 1);
+                while (cur <= end) {
+                    const ds = toDateStr(cur);
+                    if (!marks[ds]) marks[ds] = { selected: true, selectedColor: C.fertile };
+                    cur.setDate(cur.getDate() + 1);
                 }
             }
         }
 
+        // Intimacy dots — show as dot below the date
+        iLogs.forEach(l => {
+            if (marks[l.date]) {
+                marks[l.date] = { ...marks[l.date], marked: true, dotColor: C.intimacy };
+            } else {
+                marks[l.date] = { marked: true, dotColor: C.intimacy };
+            }
+        });
+
         setMarkedDates(marks);
     };
 
-    const calculateCycle = (logs) => {
-        const marks = {};
-        const dates = logs.map(l => l.date);
+    const fetchPredictions = async (lastDate) => {
+        try {
+            const result = await getCyclePredictions(lastDate);
+            if (result) setPredictions(result);
+        } catch (e) { /* silent */ }
+    };
 
-        // Mark past periods
-        dates.forEach(date => {
-            marks[date] = { selected: true, selectedColor: '#FF6B6B', type: 'period' };
-        });
+    // ─── Day press ────────────────────────────────────────────────────────────
+    const handleDayPress = (day) => {
+        const ds = day.dateString;
 
-        // Predict next cycle if we have at least one log
-        if (dates.length > 0) {
-            const lastPeriod = new Date(dates[dates.length - 1]);
-
-            // Predict next period (approx 28 days)
-            const nextPeriod = new Date(lastPeriod);
-            nextPeriod.setDate(lastPeriod.getDate() + 28);
-            const nextPeriodStr = nextPeriod.toISOString().split('T')[0];
-            marks[nextPeriodStr] = { selected: true, selectedColor: '#FFCDD2', type: 'predicted' };
-
-            // Predict Ovulation (approx 14 days before next period)
-            const ovulation = new Date(nextPeriod);
-            ovulation.setDate(nextPeriod.getDate() - 14);
-            const ovulationStr = ovulation.toISOString().split('T')[0];
-            marks[ovulationStr] = { selected: true, selectedColor: '#9C27B0', type: 'ovulation' };
-
-            // Fertile Window (Ovulation - 4 days to + 1 day)
-            for (let i = -4; i <= 1; i++) {
-                if (i === 0) continue; // Skip ovulation day itself (already marked)
-                const fertile = new Date(ovulation);
-                fertile.setDate(ovulation.getDate() + i);
-                const fertileStr = fertile.toISOString().split('T')[0];
-                marks[fertileStr] = { selected: true, selectedColor: '#E1BEE7', type: 'fertile' };
+        if (activeTab === 'cycle') {
+            const existing = periodLogs.find(l => l.date === ds);
+            if (existing) {
+                setSelectedLogId(existing.id);
+                setModal({ visible: true, date: ds, type: 'deletePeriod' });
+                return;
+            }
+            // Warn if recent
+            const recent = periodLogs.find(l => Math.abs(daysBetween(l.date, ds)) < 20);
+            if (recent) {
+                Alert.alert(
+                    'Recent Log Found',
+                    `You already logged a period on ${recent.date}. Log anyway?`,
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Log It', onPress: () => setModal({ visible: true, date: ds, type: 'period' }) }
+                    ]
+                );
+            } else {
+                setModal({ visible: true, date: ds, type: 'period' });
+            }
+        } else {
+            // Intimacy tab
+            const existing = intimacyLogs.find(l => l.date === ds);
+            if (existing) {
+                setSelectedLogId(existing.id);
+                setModal({ visible: true, date: ds, type: 'deleteIntimacy' });
+            } else {
+                setModal({ visible: true, date: ds, type: 'intimacy' });
             }
         }
-
-        setMarkedDates(marks);
     };
 
-    const logPeriodStart = async (day) => {
+    // ─── Confirm modal action ─────────────────────────────────────────────────
+    const handleConfirm = async () => {
+        const { date, type } = modal;
+        setModal({ ...modal, visible: false });
+
         try {
-            await addDoc(collection(db, 'periods', coupleId, 'logs'), {
-                date: day.dateString,
-                userId: user.id,
-                createdAt: new Date().toISOString()
-            });
-
-            await sendNotification(coupleId, user.id, user.name || 'Partner', `logged period start: ${day.dateString}`, 'period', '🩸');
-
-            setModalVisible(false);
-            // Alert.alert("Success", "Period start date logged."); // Removed Alert for better UX
-        } catch (error) {
-            console.error("Error logging period:", error);
-            Alert.alert("Error", "Could not log period.");
+            if (type === 'period') {
+                await addDoc(collection(db, 'periods', coupleId, 'logs'), {
+                    date,
+                    userId: user.id,
+                    createdAt: new Date().toISOString(),
+                });
+                await sendNotification(coupleId, user.id, user.name, `logged period start: ${date}`, 'period', '🩸');
+            } else if (type === 'deletePeriod') {
+                await deleteDoc(doc(db, 'periods', coupleId, 'logs', selectedLogId));
+            } else if (type === 'intimacy') {
+                await addDoc(collection(db, 'intimacy', coupleId, 'logs'), {
+                    date,
+                    loggedBy: user.id,
+                    loggedByName: user.name,
+                    createdAt: new Date().toISOString(),
+                });
+                await sendNotification(coupleId, user.id, user.name, `marked an intimate moment on ${date} 💛`, 'intimacy', '💛');
+            } else if (type === 'deleteIntimacy') {
+                await deleteDoc(doc(db, 'intimacy', coupleId, 'logs', selectedLogId));
+            }
+        } catch (e) {
+            Alert.alert('Error', 'Could not save. Please try again.');
         }
     };
 
-    const deletePeriodLog = async (logId) => {
-        try {
-            await deleteDoc(doc(db, 'periods', coupleId, 'logs', logId));
-            Alert.alert("Success", "Period log deleted.");
-        } catch (error) {
-            console.error("Error deleting period:", error);
-            Alert.alert("Error", "Could not delete period log.");
-        }
-    };
-
-    const handleDayPress = (day) => {
-        const date = new Date(day.dateString);
-
-        // Check if this date is ALREADY logged
-        const existingLog = periodLogs.find(log => log.date === day.dateString);
-
-        if (existingLog) {
-            setSelectedDate(day.dateString);
-            setSelectedLogId(existingLog.id);
-            setModalMode('delete');
-            setLogModalVisible(true);
-            return;
-        }
-
-        // Check for existing logs within 20 days (Validation)
-        const recentLog = periodLogs.find(log => {
-            const d = new Date(log.date);
-            const diffTime = Math.abs(date - d);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            return diffDays < 20;
-        });
-
-        if (recentLog) {
-            Alert.alert(
-                "Recent Log Found",
-                `You already logged a period start on ${recentLog.date}. Cycles are usually 21+ days. Log anyway?`,
-                [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                        text: "Yes, Log It",
-                        onPress: () => {
-                            setSelectedDate(day.dateString);
-                            setModalMode('add');
-                            setLogModalVisible(true);
-                        }
-                    }
-                ]
-            );
-        } else {
-            setSelectedDate(day.dateString);
-            setModalMode('add');
-            setLogModalVisible(true);
-        }
-    };
-
-    const handleModalConfirm = () => {
-        if (modalMode === 'add' && selectedDate) {
-            logPeriodStart({ dateString: selectedDate });
-        } else if (modalMode === 'delete' && selectedLogId) {
-            deletePeriodLog(selectedLogId);
-        }
-        setLogModalVisible(false);
-    };
-
+    // ─── AI Remedy ────────────────────────────────────────────────────────────
     const getAiAdvice = async () => {
         setAiLoading(true);
-        const advice = await getRemedySuggestion("period cramps and mood swings");
+        const advice = await getRemedySuggestion('period cramps and mood swings');
         setSuggestion(advice);
         setAiLoading(false);
     };
 
-    return (
-        <View style={{ flex: 1 }}>
-            <ScrollView style={styles.container}>
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={toggleMenu} style={styles.backButton}>
-                        <Text style={styles.backButtonText}>☰</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Period Tracker</Text>
-                    <TouchableOpacity onPress={onNotificationClick} style={styles.backButton}>
-                        <Text style={styles.backButtonText}>🔔</Text>
-                    </TouchableOpacity>
-                </View>
+    // ─── Ovulation Info Card ──────────────────────────────────────────────────
+    const renderOvulationCard = () => {
+        if (!predictions) return null;
+        const today = toDateStr(new Date());
+        const daysToOv = predictions.ovulation ? daysBetween(today, predictions.ovulation) : null;
+        const daysToNext = predictions.nextPeriod ? daysBetween(today, predictions.nextPeriod) : null;
 
-                <View style={styles.calendarContainer}>
-                    <Calendar
-                        onDayPress={handleDayPress}
-                        markedDates={markedDates}
-                        theme={{
-                            todayTextColor: '#FF6B6B',
-                            arrowColor: '#FF6B6B',
-                            selectedDayBackgroundColor: '#FF6B6B',
-                        }}
-                    />
-                    <View style={styles.legend}>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.dot, { backgroundColor: '#FF6B6B' }]} />
-                            <Text style={styles.legendText}>Period</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.dot, { backgroundColor: '#FFCDD2' }]} />
-                            <Text style={styles.legendText}>Predicted</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.dot, { backgroundColor: '#9C27B0' }]} />
-                            <Text style={styles.legendText}>Ovulation</Text>
-                        </View>
-                        <View style={styles.legendItem}>
-                            <View style={[styles.dot, { backgroundColor: '#E1BEE7' }]} />
-                            <Text style={styles.legendText}>Fertile</Text>
-                        </View>
-                    </View>
-                </View>
-
-                {partnerAdvice ? (
-                    <View style={styles.adviceBox}>
-                        <Text style={styles.sectionTitle}>❤️ Partner Tip</Text>
-                        <Text style={styles.suggestionText}>{partnerAdvice}</Text>
-                    </View>
-                ) : null}
-
-                <View style={styles.aiSection}>
-                    <Text style={styles.sectionTitle}>AI Health Assistant</Text>
-                    <Text style={styles.sectionSubtitle}>Get personalized remedy suggestions</Text>
-
-                    <TouchableOpacity style={styles.aiButton} onPress={getAiAdvice} disabled={aiLoading}>
-                        {aiLoading ? (
-                            <ActivityIndicator color="white" />
-                        ) : (
-                            <Text style={styles.aiButtonText}>Get Remedy for Cramps</Text>
+        return (
+            <View style={styles.ovCard}>
+                <Text style={styles.ovTitle}>🔮 Cycle Predictions</Text>
+                <View style={styles.ovRow}>
+                    <View style={styles.ovItem}>
+                        <Text style={styles.ovEmoji}>🩸</Text>
+                        <Text style={styles.ovLabel}>Next Period</Text>
+                        <Text style={styles.ovDate}>{predictions.nextPeriod || '—'}</Text>
+                        {daysToNext !== null && daysToNext >= 0 && (
+                            <Text style={styles.ovDays}>in {daysToNext}d</Text>
                         )}
-                    </TouchableOpacity>
-
-                    {suggestion ? (
-                        <View style={styles.suggestionBox}>
-                            <Text style={styles.suggestionText}>{suggestion}</Text>
-                        </View>
-                    ) : null}
+                    </View>
+                    <View style={[styles.ovItem, styles.ovItemCenter]}>
+                        <Text style={styles.ovEmoji}>🥚</Text>
+                        <Text style={styles.ovLabel}>Ovulation</Text>
+                        <Text style={[styles.ovDate, { color: C.ovulation }]}>{predictions.ovulation || '—'}</Text>
+                        {daysToOv !== null && daysToOv >= 0 && (
+                            <Text style={styles.ovDays}>in {daysToOv}d</Text>
+                        )}
+                    </View>
+                    <View style={styles.ovItem}>
+                        <Text style={styles.ovEmoji}>🌸</Text>
+                        <Text style={styles.ovLabel}>Fertile Window</Text>
+                        <Text style={styles.ovDate}>
+                            {predictions.fertileStart ? `${predictions.fertileStart}` : '—'}
+                        </Text>
+                        <Text style={[styles.ovDate, { fontSize: 10 }]}>
+                            {predictions.fertileEnd ? `→ ${predictions.fertileEnd}` : ''}
+                        </Text>
+                    </View>
                 </View>
+            </View>
+        );
+    };
 
+    // ─── Intimacy Stats ───────────────────────────────────────────────────────
+    const renderIntimacyStats = () => {
+        const thisMonth = toDateStr(new Date()).slice(0, 7);
+        const thisMonthCount = intimacyLogs.filter(l => l.date.startsWith(thisMonth)).length;
+        const lastLog = intimacyLogs.length > 0 ? intimacyLogs[intimacyLogs.length - 1] : null;
+        const daysSinceLast = lastLog ? daysBetween(lastLog.date, toDateStr(new Date())) : null;
 
+        return (
+            <View style={styles.intimacyStats}>
+                <Text style={styles.sectionTitle}>💛 Intimacy Stats</Text>
+                <View style={styles.statsRow}>
+                    <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{thisMonthCount}</Text>
+                        <Text style={styles.statLbl}>This Month</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{intimacyLogs.length}</Text>
+                        <Text style={styles.statLbl}>Total Logged</Text>
+                    </View>
+                    <View style={styles.statBox}>
+                        <Text style={styles.statNum}>{daysSinceLast !== null ? `${daysSinceLast}d` : '—'}</Text>
+                        <Text style={styles.statLbl}>Last Time</Text>
+                    </View>
+                </View>
+                {lastLog && (
+                    <View style={styles.lastIntimacyRow}>
+                        <Text style={styles.lastIntimacyText}>
+                            Last logged by {lastLog.loggedByName || 'you'} on {lastLog.date}
+                        </Text>
+                    </View>
+                )}
+            </View>
+        );
+    };
+
+    // ─── Modal texts ──────────────────────────────────────────────────────────
+    const modalConfig = {
+        period:         { title: '🩸 Log Period Start',      body: `Mark ${modal.date} as period start?`,    confirm: 'Log It',   danger: false },
+        deletePeriod:   { title: 'Remove Period Log',         body: `Delete period log for ${modal.date}?`,   confirm: 'Delete',   danger: true  },
+        intimacy:       { title: '💛 Log Intimate Moment',   body: `Mark ${modal.date} as intimate day?`,    confirm: 'Log It',   danger: false },
+        deleteIntimacy: { title: 'Remove Intimacy Log',       body: `Delete intimacy log for ${modal.date}?`, confirm: 'Delete',   danger: true  },
+    };
+    const mc = modal.type ? modalConfig[modal.type] : {};
+
+    // ─── Render ───────────────────────────────────────────────────────────────
+    return (
+        <SafeAreaView style={styles.safe} edges={['top']}>
+            {/* Header */}
+            <View style={styles.header}>
+                <TouchableOpacity onPress={toggleMenu} style={styles.iconBtn}>
+                    <Text style={styles.iconTxt}>☰</Text>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Cycle & Intimacy</Text>
+                <TouchableOpacity onPress={onNotificationClick} style={styles.iconBtn}>
+                    <Text style={styles.iconTxt}>🔔</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Tabs */}
+            <View style={styles.tabs}>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'cycle' && styles.tabActive]}
+                    onPress={() => setActiveTab('cycle')}
+                >
+                    <Text style={[styles.tabTxt, activeTab === 'cycle' && styles.tabTxtActive]}>🩸 Period</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tab, activeTab === 'intimacy' && styles.tabActive]}
+                    onPress={() => setActiveTab('intimacy')}
+                >
+                    <Text style={[styles.tabTxt, activeTab === 'intimacy' && styles.tabTxtActive]}>💛 Intimacy</Text>
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+                {loading ? (
+                    <ActivityIndicator color={C.period} style={{ marginTop: 40 }} />
+                ) : (
+                    <>
+                        {/* Calendar */}
+                        <View style={styles.calCard}>
+                            <Calendar
+                                onDayPress={handleDayPress}
+                                markedDates={markedDates}
+                                markingType="dot"
+                                theme={{
+                                    backgroundColor: IG.white,
+                                    calendarBackground: IG.white,
+                                    todayTextColor: C.period,
+                                    arrowColor: IG.textPrimary,
+                                    selectedDayBackgroundColor: C.period,
+                                    dotColor: C.intimacy,
+                                    selectedDotColor: IG.white,
+                                    dayTextColor: IG.textPrimary,
+                                    textDisabledColor: IG.textMuted,
+                                    monthTextColor: IG.textPrimary,
+                                    textMonthFontWeight: '700',
+                                    textDayFontSize: 14,
+                                    textMonthFontSize: 16,
+                                }}
+                            />
+
+                            {/* Legend */}
+                            <View style={styles.legend}>
+                                {[
+                                    { color: C.period,    label: 'Period'    },
+                                    { color: C.predicted, label: 'Predicted' },
+                                    { color: C.ovulation, label: 'Ovulation' },
+                                    { color: C.fertile,   label: 'Fertile'   },
+                                    { color: C.intimacy,  label: '💛 Intimate'},
+                                ].map(item => (
+                                    <View key={item.label} style={styles.legendItem}>
+                                        <View style={[styles.dot, { backgroundColor: item.color }]} />
+                                        <Text style={styles.legendTxt}>{item.label}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Tab instruction */}
+                        <View style={styles.tapHint}>
+                            <Text style={styles.tapHintTxt}>
+                                {activeTab === 'cycle'
+                                    ? '🩸 Tap a date to log period start'
+                                    : '💛 Tap a date to mark intimate moment'}
+                            </Text>
+                        </View>
+
+                        {/* Cycle tab content */}
+                        {activeTab === 'cycle' && (
+                            <>
+                                {renderOvulationCard()}
+
+                                {partnerAdvice ? (
+                                    <View style={styles.adviceCard}>
+                                        <Text style={styles.sectionTitle}>❤️ Partner Tip</Text>
+                                        <Text style={styles.adviceTxt}>{partnerAdvice}</Text>
+                                    </View>
+                                ) : null}
+
+                                <View style={styles.aiSection}>
+                                    <Text style={styles.sectionTitle}>🤖 AI Health Assistant</Text>
+                                    <TouchableOpacity
+                                        style={styles.aiBtn}
+                                        onPress={getAiAdvice}
+                                        disabled={aiLoading}
+                                    >
+                                        {aiLoading
+                                            ? <ActivityIndicator color={IG.white} />
+                                            : <Text style={styles.aiBtnTxt}>Get Remedy for Cramps</Text>
+                                        }
+                                    </TouchableOpacity>
+                                    {suggestion ? (
+                                        <View style={styles.suggestionBox}>
+                                            <Text style={styles.suggestionTxt}>{suggestion}</Text>
+                                        </View>
+                                    ) : null}
+                                </View>
+                            </>
+                        )}
+
+                        {/* Intimacy tab content */}
+                        {activeTab === 'intimacy' && renderIntimacyStats()}
+                    </>
+                )}
             </ScrollView>
 
-            {/* Log Period Modal */}
+            {/* Modal */}
             <Modal
-                animationType="fade"
-                transparent={true}
-                visible={logModalVisible}
-                onRequestClose={() => setLogModalVisible(false)}
+                animationType="slide"
+                transparent
+                visible={modal.visible}
+                onRequestClose={() => setModal({ ...modal, visible: false })}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>
-                            {modalMode === 'add' ? 'Log Period Start' : 'Delete Period Log'}
-                        </Text>
-                        <Text style={styles.modalText}>
-                            {modalMode === 'add'
-                                ? `Mark ${selectedDate} as the start of your period?`
-                                : `Delete the period log for ${selectedDate}?`
-                            }
-                        </Text>
-                        <View style={styles.modalButtons}>
+                    <View style={styles.modalBox}>
+                        <Text style={styles.modalTitle}>{mc.title}</Text>
+                        <Text style={styles.modalBody}>{mc.body}</Text>
+                        <View style={styles.modalBtns}>
                             <TouchableOpacity
-                                style={styles.cancelButton}
-                                onPress={() => setLogModalVisible(false)}
+                                style={styles.modalCancel}
+                                onPress={() => setModal({ ...modal, visible: false })}
                             >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                                <Text style={styles.modalCancelTxt}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.saveButton, modalMode === 'delete' && { backgroundColor: '#FF4444' }]}
-                                onPress={handleModalConfirm}
+                                style={[styles.modalConfirm, mc.danger && { backgroundColor: IG.red }]}
+                                onPress={handleConfirm}
                             >
-                                <Text style={styles.saveButtonText}>
-                                    {modalMode === 'add' ? 'Confirm' : 'Delete'}
-                                </Text>
+                                <Text style={styles.modalConfirmTxt}>{mc.confirm}</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
-        </View>
+        </SafeAreaView>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
-        padding: 15,
-        backgroundColor: 'white',
-        borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-        paddingTop: 50,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    backButton: {
-        padding: 5,
-    },
-    backButtonText: {
-        fontSize: 24,
-        color: '#779ECB',
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    calendarContainer: {
-        backgroundColor: 'white',
-        margin: 15,
-        borderRadius: 15,
-        padding: 10,
-        elevation: 3,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-    },
-    legend: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginTop: 15,
-        paddingBottom: 5,
-    },
-    legendItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    dot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginRight: 5,
-    },
-    legendText: {
-        fontSize: 12,
-        color: '#666',
-    },
-    aiSection: {
-        padding: 20,
-    },
-    sectionTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 5,
-    },
-    sectionSubtitle: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 15,
-    },
-    aiButton: {
-        backgroundColor: '#779ECB',
-        padding: 15,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginBottom: 15,
-    },
-    aiButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: 16,
-    },
-    suggestionBox: {
-        backgroundColor: 'white',
-        padding: 15,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#E3F2FD',
-    },
-    suggestionText: {
-        fontSize: 14,
-        color: '#333',
-        lineHeight: 20,
-    },
-    adviceBox: {
-        backgroundColor: '#FFF0F5', // Light pink background
-        padding: 20,
-        marginHorizontal: 20,
-        marginBottom: 10,
-        borderRadius: 15,
-        borderWidth: 1,
-        borderColor: '#FFB7B2',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContent: {
-        backgroundColor: 'white',
-        width: '80%',
-        padding: 20,
-        borderRadius: 20,
-        alignItems: 'center',
-        elevation: 5,
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginBottom: 10,
-        color: '#333',
-    },
-    modalText: {
-        fontSize: 16,
-        marginBottom: 20,
-        color: '#666',
-        textAlign: 'center',
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        width: '100%',
-    },
-    cancelButton: {
-        padding: 10,
-        flex: 1,
-        alignItems: 'center',
-        marginRight: 5,
-    },
-    saveButton: {
-        padding: 10,
-        backgroundColor: '#FF6B6B',
-        borderRadius: 10,
-        flex: 1,
-        alignItems: 'center',
-        marginLeft: 5,
-    },
-    cancelButtonText: {
-        color: '#666',
-        fontWeight: 'bold',
-    },
-    saveButtonText: {
-        color: 'white',
-        fontWeight: 'bold',
-    },
+    safe:       { flex: 1, backgroundColor: IG.background },
+    header:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: IG.white, borderBottomWidth: 0.5, borderBottomColor: IG.border },
+    headerTitle:{ fontSize: 16, fontWeight: '700', color: IG.textPrimary },
+    iconBtn:    { padding: 6 },
+    iconTxt:    { fontSize: 22, color: IG.textPrimary },
+
+    // Tabs
+    tabs:       { flexDirection: 'row', backgroundColor: IG.white, borderBottomWidth: 0.5, borderBottomColor: IG.border },
+    tab:        { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+    tabActive:  { borderBottomColor: IG.textPrimary },
+    tabTxt:     { fontSize: 14, color: IG.textSecondary, fontWeight: '500' },
+    tabTxtActive: { color: IG.textPrimary, fontWeight: '700' },
+
+    scroll:     { paddingBottom: 30 },
+
+    // Calendar
+    calCard:    { backgroundColor: IG.white, marginTop: 8, borderRadius: 0 },
+    legend:     { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+    legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 10, marginBottom: 4 },
+    dot:        { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
+    legendTxt:  { fontSize: 11, color: IG.textSecondary },
+
+    tapHint:    { marginHorizontal: 16, marginTop: 8, marginBottom: 2, paddingVertical: 10, backgroundColor: IG.white, borderRadius: 10, alignItems: 'center', borderWidth: 0.5, borderColor: IG.border },
+    tapHintTxt: { fontSize: 13, color: IG.textSecondary },
+
+    // Ovulation card
+    ovCard:     { margin: 16, backgroundColor: IG.white, borderRadius: 12, padding: 16, borderWidth: 0.5, borderColor: IG.border },
+    ovTitle:    { fontSize: 15, fontWeight: '700', color: IG.textPrimary, marginBottom: 14 },
+    ovRow:      { flexDirection: 'row', justifyContent: 'space-between' },
+    ovItem:     { flex: 1, alignItems: 'center' },
+    ovItemCenter:{ borderLeftWidth: 0.5, borderRightWidth: 0.5, borderColor: IG.border },
+    ovEmoji:    { fontSize: 22, marginBottom: 4 },
+    ovLabel:    { fontSize: 11, color: IG.textSecondary, textAlign: 'center', marginBottom: 4 },
+    ovDate:     { fontSize: 12, fontWeight: '700', color: IG.textPrimary, textAlign: 'center' },
+    ovDays:     { fontSize: 11, color: IG.blue, marginTop: 2 },
+
+    // Intimacy stats
+    intimacyStats: { margin: 16, backgroundColor: IG.white, borderRadius: 12, padding: 16, borderWidth: 0.5, borderColor: IG.border },
+    statsRow:   { flexDirection: 'row', justifyContent: 'space-around', marginTop: 12 },
+    statBox:    { alignItems: 'center' },
+    statNum:    { fontSize: 28, fontWeight: '800', color: C.intimacy },
+    statLbl:    { fontSize: 12, color: IG.textSecondary, marginTop: 2 },
+    lastIntimacyRow: { marginTop: 14, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: IG.border },
+    lastIntimacyText: { fontSize: 13, color: IG.textSecondary, textAlign: 'center' },
+
+    sectionTitle: { fontSize: 16, fontWeight: '700', color: IG.textPrimary, marginBottom: 10 },
+
+    adviceCard: { marginHorizontal: 16, marginTop: 0, backgroundColor: '#FFF5F5', borderRadius: 12, padding: 16, borderWidth: 0.5, borderColor: '#FFCDD2' },
+    adviceTxt:  { fontSize: 14, color: IG.textPrimary, lineHeight: 20 },
+
+    aiSection:  { margin: 16 },
+    aiBtn:      { backgroundColor: IG.textPrimary, borderRadius: 8, padding: 14, alignItems: 'center', marginBottom: 12 },
+    aiBtnTxt:   { color: IG.white, fontWeight: '600', fontSize: 14 },
+    suggestionBox: { backgroundColor: IG.white, borderRadius: 10, padding: 14, borderWidth: 0.5, borderColor: IG.border },
+    suggestionTxt: { fontSize: 14, color: IG.textPrimary, lineHeight: 22 },
+
+    // Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+    modalBox:   { backgroundColor: IG.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 36 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: IG.textPrimary, marginBottom: 8 },
+    modalBody:  { fontSize: 14, color: IG.textSecondary, marginBottom: 24 },
+    modalBtns:  { flexDirection: 'row', gap: 12 },
+    modalCancel: { flex: 1, paddingVertical: 14, borderRadius: 10, borderWidth: 1, borderColor: IG.border, alignItems: 'center' },
+    modalCancelTxt: { fontSize: 14, fontWeight: '600', color: IG.textPrimary },
+    modalConfirm: { flex: 1, paddingVertical: 14, borderRadius: 10, backgroundColor: IG.textPrimary, alignItems: 'center' },
+    modalConfirmTxt: { fontSize: 14, fontWeight: '600', color: IG.white },
 });
 
 export default PeriodTrackerScreen;
