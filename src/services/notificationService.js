@@ -97,6 +97,8 @@ async function _sendExpoPush(expoPushToken, title, body, data) {
                 title,
                 body,
                 data,
+                channelId: 'us-couple',
+                priority: 'high',
             }),
         });
     } catch (e) {
