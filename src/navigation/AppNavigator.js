@@ -1,8 +1,9 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthContext } from '../context/AuthContext';
 import { ActivityIndicator, View } from 'react-native';
+import { setupNotifications } from '../services/notificationService';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -13,6 +14,10 @@ const Stack = createNativeStackNavigator();
 
 const AppNavigator = () => {
     const { user, partner, isLoading } = useContext(AuthContext);
+
+    useEffect(() => {
+        setupNotifications().catch(err => console.log("Failed to setup notifications:", err));
+    }, []);
 
     if (isLoading) {
         return (
