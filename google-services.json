@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "485778341590",
+    "project_id": "joys-e2cb2",
+    "storage_bucket": "joys-e2cb2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:485778341590:android:178f7e293ae11c39769377",
+        "android_client_info": {
+          "package_name": "com.joe.uscoupleapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBR4vAaUOxYDZkUmu68ng2wGElXt8Ipp1c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
