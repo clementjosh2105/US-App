@@ -38,11 +38,29 @@ const NotificationDropdown = ({ onClose, onNavigate }) => {
                 console.error("Error marking as read:", error);
             }
         }
-        // Navigate if needed, e.g. to Posts or Dates
-        if (item.message.includes('added a date')) {
-            onNavigate('Dates');
-        } else if (item.message.includes('shared a new moment')) {
-            onNavigate('Posts');
+        // Navigate based on type
+        switch (item.type) {
+            case 'post':
+            case 'music':
+                onNavigate('Posts');
+                break;
+            case 'chat':
+                onNavigate('Chat');
+                break;
+            case 'date':
+                onNavigate('Dates');
+                break;
+            case 'period':
+                onNavigate('PeriodTracker');
+                break;
+            case 'emotion':
+                onNavigate('Score');
+                break;
+            default:
+                // Fallback for older notifications without type
+                if (item.message.includes('added a date')) onNavigate('Dates');
+                else if (item.message.includes('shared a new moment')) onNavigate('Posts');
+                break;
         }
         onClose();
     };
@@ -118,10 +136,23 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 15,
         borderBottomWidth: 1,
+        borderBottomColor: '#f5f5f5',
+        alignItems: 'center',
+    },
+    title: {
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    markRead: {
+        color: '#007AFF',
+        fontSize: 12,
+    },
+    item: {
+        flexDirection: 'row',
+        alignItems: 'center',
         padding: 15,
         borderBottomWidth: 1,
         borderBottomColor: '#f5f5f5',
-        alignItems: 'center',
     },
     unreadItem: {
         backgroundColor: '#f0f9ff',

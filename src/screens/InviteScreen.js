@@ -1,17 +1,31 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Clipboard, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Clipboard, Alert, Share, ScrollView } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
-import { getTheme } from '../styles/theme';
+import { getTheme, COLORS } from '../styles/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const InviteScreen = () => {
-    const { user, connectPartner, logout } = useContext(AuthContext);
+    const { user, connectPartner, logout, updateUserColor } = useContext(AuthContext);
     const [partnerCode, setPartnerCode] = useState('');
     const theme = getTheme(user.color);
 
     const copyToClipboard = () => {
         Clipboard.setString(user.inviteCode);
         Alert.alert('Copied', 'Invite code copied to clipboard!');
+    };
+
+    const handleShare = async () => {
+        try {
+            await Share.share({
+                message: `Hey! Let's connect on US <3. My invite code is: ${user.inviteCode}`,
+            });
+        } catch (error) {
+            Alert.alert(error.message);
+        }
+    };
+
+    const handleColorChange = (color) => {
+        updateUserColor(color);
     };
 
     const handleConnect = async () => {
@@ -45,6 +59,27 @@ const InviteScreen = () => {
                     <Text style={[styles.code, { color: theme.primary }]}>{user.inviteCode}</Text>
                     <Text style={styles.copyText}>Tap to copy</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.shareButton, { borderColor: theme.primary }]} onPress={handleShare}>
+                    <Text style={[styles.shareText, { color: theme.primary }]}>Share Invite Code</Text>
+                </TouchableOpacity>
+
+                <View style={styles.colorSection}>
+                    <Text style={[styles.label, { color: theme.text }]}>Choose Couple Theme:</Text>
+                    <View style={styles.colorContainer}>
+                        {Object.keys(COLORS).filter(k => k !== 'common').map((colorKey) => (
+                            <TouchableOpacity
+                                key={colorKey}
+                                style={[
+                                    styles.colorOption,
+                                    { backgroundColor: COLORS[colorKey].primary },
+                                    user.color === colorKey && styles.selectedColor
+                                ]}
+                                onPress={() => handleColorChange(colorKey)}
+                            />
+                        ))}
+                    </View>
+                </View>
 
                 <View style={styles.divider}>
                     <View style={styles.line} />
@@ -165,6 +200,38 @@ const styles = StyleSheet.create({
     logoutText: {
         color: '#666',
         fontSize: 16,
+    },
+
+    shareButton: {
+        padding: 15,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginBottom: 20,
+        borderWidth: 1,
+        backgroundColor: 'transparent',
+    },
+    shareText: {
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    colorSection: {
+        marginBottom: 20,
+    },
+    colorContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginTop: 10,
+    },
+    colorOption: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    selectedColor: {
+        borderColor: '#333',
+        borderWidth: 3,
     },
 });
 

@@ -1,17 +1,42 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { getTheme } from '../styles/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { db } from '../firebaseConfig';
+import { collection, query, onSnapshot } from 'firebase/firestore';
 
-const DashboardScreen = ({ navigation }) => {
+const DashboardScreen = ({ onNavigate }) => {
     const { user, partner, logout } = useContext(AuthContext);
     const theme = getTheme(user.color);
+    const [score, setScore] = useState(0);
+    const [level, setLevel] = useState('Newbie');
+
+    const coupleId = [user.id, partner.id].sort().join('_');
+
+    useEffect(() => {
+        const unsub = onSnapshot(collection(db, 'emotions', coupleId, 'logs'), (snap) => {
+            let total = 0;
+            snap.forEach(doc => {
+                total += doc.data().value || 0;
+            });
+            setScore(total);
+
+            // Determine Level
+            if (total >= 100) setLevel('Soulmates');
+            else if (total >= 50) setLevel('Deeply Connected');
+            else if (total >= 20) setLevel('Growing Strong');
+            else setLevel('Just Started');
+        });
+
+        return () => unsub();
+    }, [coupleId]);
 
     const features = [
-        { id: 'Chat', title: 'Chat', icon: '💬', description: 'Stay in touch' },
-        { id: 'Posts', title: 'Moments', icon: '📸', description: 'Share memories' },
-        { id: 'Dates', title: 'Special Dates', icon: '📅', description: 'Mark your calendar' },
+        { id: 'Chat', title: 'Chat', icon: '💬' },
+        { id: 'Posts', title: 'Posts', icon: '📸' },
+        { id: 'Dates', title: 'Special Dates', icon: '📅' },
+        { id: 'PeriodTracker', title: 'Period Tracker', icon: '🩸' },
     ];
 
     return (
@@ -27,12 +52,18 @@ const DashboardScreen = ({ navigation }) => {
             </View>
 
             <ScrollView contentContainerStyle={styles.content}>
-                <View style={[styles.statusCard, { backgroundColor: theme.primary }]}>
-                    <Text style={styles.statusTitle}>Together Forever</Text>
+                <TouchableOpacity
+                    style={[styles.statusCard, { backgroundColor: theme.primary }]}
+                    onPress={() => onNavigate('Score')}
+                >
+                    <Text style={styles.statusTitle}>{level}</Text>
                     <Text style={styles.statusText}>
-                        You and {partner.name} are connected.
+                        Relationship Score: {score}
                     </Text>
-                </View>
+                    <Text style={[styles.statusText, { fontSize: 12, marginTop: 5, opacity: 0.8 }]}>
+                        Tap to view details
+                    </Text>
+                </TouchableOpacity>
 
                 <Text style={[styles.sectionTitle, { color: theme.text }]}>Explore</Text>
 
@@ -41,11 +72,10 @@ const DashboardScreen = ({ navigation }) => {
                         <TouchableOpacity
                             key={feature.id}
                             style={styles.card}
-                            onPress={() => navigation.navigate(feature.id)}
+                            onPress={() => onNavigate(feature.id)}
                         >
                             <Text style={styles.cardIcon}>{feature.icon}</Text>
                             <Text style={[styles.cardTitle, { color: theme.text }]}>{feature.title}</Text>
-                            <Text style={styles.cardDescription}>{feature.description}</Text>
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -130,10 +160,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         marginBottom: 5,
     },
-    cardDescription: {
-        fontSize: 14,
-        color: '#999',
-    },
+
 });
 
 export default DashboardScreen;

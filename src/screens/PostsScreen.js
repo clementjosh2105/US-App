@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Vibration } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, Alert, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform, Vibration, Modal } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { db, storage } from '../firebaseConfig';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, updateDoc, arrayUnion, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import * as ImagePicker from 'expo-image-picker';
+import MusicStatus from '../components/MusicStatus';
+import { sendNotification } from '../services/notificationService';
 
 const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
     const { user, partner } = useContext(AuthContext);
@@ -36,11 +38,18 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
     }, [coupleId]);
 
     const pickImage = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission needed', 'We need access to your photos to upload a post.');
+            return;
+        }
+
         let result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.All,
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [4, 3],
             quality: 0.5,
+            maxWidth: 1024,
+            maxHeight: 1024,
         });
 
         if (!result.canceled) {
@@ -70,13 +79,7 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
             });
 
             // Trigger Notification
-            await addDoc(collection(db, 'notifications', coupleId, 'list'), {
-                message: `${user.name} shared a new moment!`,
-                icon: '📸',
-                createdAt: serverTimestamp(),
-                read: false,
-                senderId: user.id
-            });
+            await sendNotification(coupleId, user.id, user.name, `${user.name} shared a new moment!`, 'post', '📸');
 
             Vibration.vibrate(); // Haptic feedback/Sound replacement
 
@@ -104,6 +107,10 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
                     createdAt: new Date().toISOString()
                 })
             });
+
+
+            await sendNotification(coupleId, user.id, user.name, `commented on your post: "${text.trim()}"`, 'comment', '💬');
+
             setCommentText(prev => ({ ...prev, [postId]: '' }));
         } catch (error) {
             console.error("Error adding comment:", error);
@@ -134,15 +141,33 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
 
         const REACTION_OPTIONS = ["❤️", "😂", "😮", "😢"];
 
+        const authorPhoto = isMyPost ? user.photoUrl : partner.photoUrl;
+        const authorName = isMyPost ? "You" : partner.name;
+
         return (
             <View style={styles.postContainer}>
                 <View style={styles.postHeader}>
-                    <Text style={styles.postAuthor}>{isMyPost ? "You" : partner.name}</Text>
-                    <Text style={styles.postDate}>
-                        {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : ''}
-                    </Text>
+                    {authorPhoto ? (
+                        <Image
+                            source={{ uri: authorPhoto, cache: 'force-cache' }}
+                            style={styles.authorAvatar}
+                        />
+                    ) : (
+                        <View style={styles.authorPlaceholder}>
+                            <Text style={styles.authorPlaceholderText}>{authorName ? authorName[0] : '?'}</Text>
+                        </View>
+                    )}
+                    <View>
+                        <Text style={styles.postAuthor}>{authorName}</Text>
+                        <Text style={styles.postDate}>
+                            {item.createdAt?.toDate ? item.createdAt.toDate().toLocaleDateString() : ''}
+                        </Text>
+                    </View>
                 </View>
-                <Image source={{ uri: item.imageUrl }} style={styles.postImage} />
+                <Image
+                    source={{ uri: item.imageUrl, cache: 'force-cache' }}
+                    style={styles.postImage}
+                />
 
                 <View style={styles.reactionsContainer}>
                     <View style={styles.reactionIcons}>
@@ -221,6 +246,15 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
                         multiline
                     />
                 </View>
+
+                <Modal transparent={true} visible={uploading} animationType="fade">
+                    <View style={styles.loadingOverlay}>
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#779ECB" />
+                            <Text style={styles.loadingText}>Sharing Moment...</Text>
+                        </View>
+                    </View>
+                </Modal>
             </KeyboardAvoidingView>
         );
     }
@@ -236,6 +270,8 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
                     <Text style={styles.backButtonText}>🔔</Text>
                 </TouchableOpacity>
             </View>
+
+            <MusicStatus />
 
             <View style={styles.actionContainer}>
                 <TouchableOpacity onPress={pickImage} disabled={uploading} style={styles.newPostButton}>
@@ -256,7 +292,7 @@ const PostsScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
                     <Text style={styles.emptyText}>No posts yet. Share a memory!</Text>
                 }
             />
-        </KeyboardAvoidingView>
+        </KeyboardAvoidingView >
     );
 };
 
@@ -330,10 +366,28 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     postHeader: {
-        padding: 8,
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
+        padding: 10,
+    },
+    authorAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        marginRight: 10,
+    },
+    authorPlaceholder: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#eee',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 10,
+    },
+    authorPlaceholderText: {
+        fontWeight: 'bold',
+        color: '#555',
     },
     postAuthor: {
         fontWeight: 'bold',
@@ -441,6 +495,25 @@ const styles = StyleSheet.create({
         marginTop: 50,
         color: '#999',
         fontSize: 16,
+    },
+    loadingOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingContainer: {
+        backgroundColor: 'white',
+        padding: 20,
+        borderRadius: 10,
+        alignItems: 'center',
+        elevation: 5,
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#555',
     },
 });
 

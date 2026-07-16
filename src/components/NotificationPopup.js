@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 
-const NotificationPopup = ({ message, icon, visible, onClose }) => {
+const NotificationPopup = ({ message, icon, visible, onClose, onPress }) => {
     const slideAnim = useRef(new Animated.Value(-100)).current;
 
     useEffect(() => {
@@ -33,11 +33,16 @@ const NotificationPopup = ({ message, icon, visible, onClose }) => {
         });
     };
 
+    const handlePress = () => {
+        if (onPress) onPress();
+        hide();
+    };
+
     if (!visible) return null;
 
     return (
         <Animated.View style={[styles.container, { transform: [{ translateY: slideAnim }] }]}>
-            <TouchableOpacity style={styles.content} onPress={hide}>
+            <TouchableOpacity style={styles.content} onPress={handlePress}>
                 <Text style={styles.icon}>{icon || '🔔'}</Text>
                 <Text style={styles.message}>{message}</Text>
             </TouchableOpacity>

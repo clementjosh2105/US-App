@@ -1,11 +1,15 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import SideMenu from '../components/SideMenu';
+import DashboardScreen from './DashboardScreen';
 import PostsScreen from './PostsScreen';
 import ChatScreen from './ChatScreen';
 import DatesScreen from './DatesScreen';
+import PeriodTrackerScreen from './PeriodTrackerScreen';
 import ScoreScreen from './ScoreScreen';
 import NotificationsScreen from './NotificationsScreen';
+import BucketListScreen from './BucketListScreen';
+import SettingsScreen from './SettingsScreen';
 import NotificationPopup from '../components/NotificationPopup';
 import NotificationDropdown from '../components/NotificationDropdown';
 import { db } from '../firebaseConfig';
@@ -15,12 +19,12 @@ import { Audio } from 'expo-av';
 
 const HomeScreen = () => {
     const { user, partner } = useContext(AuthContext);
-    const [activeTab, setActiveTab] = useState('Dashboard'); // Default to Dashboard
+    const [activeTab, setActiveTab] = useState('Score'); // Default to Score
     const [isMenuOpen, setIsMenuOpen] = useState(false);
 
     // Popup State
     const [popupVisible, setPopupVisible] = useState(false);
-    const [popupData, setPopupData] = useState({ message: '', icon: '' });
+    const [popupData, setPopupData] = useState({ message: '', icon: '', type: '' });
 
     // Notification Dropdown State
     const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -83,7 +87,7 @@ const HomeScreen = () => {
                     const diff = (now - created) / 1000;
 
                     if (diff < 5 && data.message && !data.read && data.senderId !== user.id) {
-                        setPopupData({ message: data.message, icon: data.icon });
+                        setPopupData({ message: data.message, icon: data.icon, type: data.type });
                         setPopupVisible(true);
                         playNotificationSound();
                     }
@@ -102,7 +106,7 @@ const HomeScreen = () => {
         };
 
         switch (activeTab) {
-            case 'Dashboard':
+            case 'Score':
                 return <ScoreScreen {...props} />;
             case 'Notifications':
                 return <NotificationsScreen {...props} />;
@@ -112,6 +116,12 @@ const HomeScreen = () => {
                 return <ChatScreen {...props} />;
             case 'Dates':
                 return <DatesScreen {...props} />;
+            case 'PeriodTracker':
+                return <PeriodTrackerScreen {...props} />;
+            case 'BucketList':
+                return <BucketListScreen {...props} />;
+            case 'Settings':
+                return <SettingsScreen {...props} />;
             default:
                 return <PostsScreen {...props} />;
         }
@@ -124,6 +134,31 @@ const HomeScreen = () => {
                 message={popupData.message}
                 icon={popupData.icon}
                 onClose={() => setPopupVisible(false)}
+                onPress={() => {
+                    // Navigate based on type
+                    switch (popupData.type) {
+                        case 'post':
+                        case 'music':
+                            setActiveTab('Posts');
+                            break;
+                        case 'chat':
+                            setActiveTab('Chat');
+                            break;
+                        case 'date':
+                            setActiveTab('Dates');
+                            break;
+                        case 'period':
+                            setActiveTab('PeriodTracker');
+                            break;
+                        case 'emotion':
+                            setActiveTab('Score');
+                            break;
+                        default:
+                            if (popupData.message.includes('added a date')) setActiveTab('Dates');
+                            else if (popupData.message.includes('shared a new moment')) setActiveTab('Posts');
+                            break;
+                    }
+                }}
             />
 
             {isNotifOpen && (

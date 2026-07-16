@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal, A
 import { AuthContext } from '../context/AuthContext';
 import { db } from '../firebaseConfig';
 import { collection, addDoc, query, orderBy, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
+import { sendNotification } from '../services/notificationService';
 
 const DatesScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
     const { user, partner } = useContext(AuthContext);
@@ -83,13 +84,8 @@ const DatesScreen = ({ toggleMenu, onNavigate, onNotificationClick }) => {
             });
 
             // Trigger Notification
-            await addDoc(collection(db, 'notifications', coupleId, 'list'), {
-                message: `${user.name} added a date: ${title}`,
-                icon: '📅',
-                createdAt: new Date(),
-                read: false,
-                senderId: user.id
-            });
+            // Trigger Notification
+            await sendNotification(coupleId, user.id, user.name, `${user.name} added a date: ${title}`, 'date', '📅');
 
             Vibration.vibrate();
             setIsAdding(false);

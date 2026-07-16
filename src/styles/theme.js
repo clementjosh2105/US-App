@@ -17,6 +17,22 @@ export const COLORS = {
         card: '#FFFFFF',
         accent: '#93C8D5'
     },
+    green: {
+        primary: '#A0E8AF', // Soft Green
+        secondary: '#E0F2F1',
+        background: '#F1F8E9',
+        text: '#33691E',
+        card: '#FFFFFF',
+        accent: '#AED581'
+    },
+    purple: {
+        primary: '#D7BDE2', // Soft Purple
+        secondary: '#F3E5F5',
+        background: '#FBF7FB',
+        text: '#4A148C',
+        card: '#FFFFFF',
+        accent: '#E1BEE7'
+    },
     common: {
         white: '#FFFFFF',
         black: '#444444',
@@ -26,7 +42,7 @@ export const COLORS = {
 };
 
 export const getTheme = (colorScheme) => {
-    return colorScheme === 'blue' ? COLORS.blue : COLORS.red;
+    return COLORS[colorScheme] || COLORS.red;
 };
 
 export const commonStyles = StyleSheet.create({
