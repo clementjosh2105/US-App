@@ -93,9 +93,14 @@ const ScoreScreen = ({ onNotificationClick, onNavigate }) => {
             {/* Header */}
             <View style={styles.header}>
                 <Text style={styles.headerLogo}>US</Text>
-                <TouchableOpacity onPress={onNotificationClick} style={styles.notifBtn}>
-                    <Text style={styles.notifIcon}>🔔</Text>
-                </TouchableOpacity>
+                <View style={styles.headerRight}>
+                    <TouchableOpacity onPress={onNotificationClick} style={styles.notifBtn}>
+                        <Text style={styles.notifIcon}>🔔</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => onNavigate('Settings')} style={styles.notifBtn}>
+                        <Text style={styles.notifIcon}>⚙️</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -248,6 +253,7 @@ const styles = StyleSheet.create({
     headerLogo: { fontSize: 26, fontWeight: '800', fontStyle: 'italic', color: IG.textPrimary, fontFamily: 'serif' },
     notifBtn:   { padding: 4 },
     notifIcon:  { fontSize: 22 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 
     // Hero
     heroCard:   { margin: 12, backgroundColor: IG.white, borderRadius: 16, padding: 20, borderWidth: 0.5, borderColor: IG.border },
