@@ -24,12 +24,7 @@ export const AuthProvider = ({ children }) => {
                         const userData = docSnap.data();
                         setUser({ id: currentUser.uid, ...userData });
 
-                        // Register for Push Notifications if not already done or to update token
-                        registerForPushNotificationsAsync().then(token => {
-                            if (token && userData.pushToken !== token) {
-                                updateDoc(userDocRef, { pushToken: token });
-                            }
-                        });
+                        // Push token registration moved to HomeScreen to prevent race conditions on startup
 
                         if (userData.partnerId) {
                             // Fetch partner data

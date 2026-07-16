@@ -12,10 +12,11 @@ import SettingsScreen from './SettingsScreen';
 import NotificationPopup from '../components/NotificationPopup';
 import NotificationDropdown from '../components/NotificationDropdown';
 import { db } from '../firebaseConfig';
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { AuthContext } from '../context/AuthContext';
 import { Audio } from 'expo-av';
 import { IG } from '../styles/theme';
+import { registerForPushNotificationsAsync } from '../services/registerForPushNotificationsAsync';
 
 const HomeScreen = () => {
     const { user, partner } = useContext(AuthContext);
@@ -34,6 +35,15 @@ const HomeScreen = () => {
             shouldDuckAndroid: true,
             playThroughEarpieceAndroid: false,
         }).catch(() => {});
+    }, []);
+
+    // Register push token after permissions are guaranteed
+    useEffect(() => {
+        registerForPushNotificationsAsync().then(token => {
+            if (token && user.pushToken !== token) {
+                updateDoc(doc(db, "users", user.id), { pushToken: token });
+            }
+        }).catch(err => console.log("[Home] Push token register error:", err));
     }, []);
 
     const playNotificationSound = async () => {
